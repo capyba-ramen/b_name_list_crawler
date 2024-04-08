@@ -1,2 +1,3 @@
 doc/*
 /myenv/*
+__pycache__/
