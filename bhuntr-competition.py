@@ -83,7 +83,6 @@ def craw_all_and_prepare_data():
     # import_result_file.writeCols(0, 0, ["Fruits"] + test_data_fruits)
     import_result_file.writeRows(0, 0, column_titles)
 
-
     rows = 0
     for i, row in enumerate(data):
         import_result_file.writeRows(i + 1, 0, row)
