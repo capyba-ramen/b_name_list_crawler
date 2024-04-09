@@ -5,7 +5,8 @@ from datetime import datetime
 from operate_excel import XlsxExcel
 
 def make_url(target: str, page: int, size: int):
-    return f"https://api.bhuntr.com/tw/cms/bhuntr/contest?language=tw&target={target}&limit={size}&page={page}&sort=mixed&timeline=notEnded"
+    # return f"https://api.bhuntr.com/tw/cms/bhuntr/contest?language=tw&target={target}&limit={size}&page={page}&sort=mixed&timeline=notEnded"
+    return f"https://api.bhuntr.com/tw/cms/bhuntr/contest?language=tw&target={target}&limit={size}&page={page}&sort=mixed&deadline=1year"
 
 
 def crawl_webpage(url):

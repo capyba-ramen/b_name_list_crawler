@@ -1,65 +1,160 @@
-import time
-import random
 import requests
+from bs4 import BeautifulSoup
+import os
+import openpyxl
+from datetime import datetime
+from operate_excel import XlsxExcel
+import requests
+from urllib.parse import urlencode
+
+def scrape_job_detail(apiUrl):
+    result = None
+
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.92 Safari/537.36",
+            "Referer": "https://www.104.com.tw/jobs/search/",
+        }
+
+        response = requests.get(apiUrl, headers=headers)
+
+        if response.status_code == 200:
+            data = response.json()
+            email = data['data']['contact']['email']
+            hrName = data['data']['contact']['hrName']
+            companyName = data['data']['header']['custName']
+            companyUrl = data['data']['header']['custUrl']
+            industry = data['data']['industry']
+            custNo = data['data']['custNo']
+
+            if email:
+                result = { custNo: [companyName, industry, email, hrName, companyUrl] }
+
+        else:
+            print(f"Failed to fetch webpage. Status code: {response.status_code}")
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error occurred: {e}")
+
+    return result
 
 
-def search_job(keyword, max_mun=10, filter_params=None, sort_type='符合度', is_sort_asc=False):
-    """搜尋職缺"""
-    jobs = []
-    total_count = 0
+def scrape_company_joblist(companyJobListLink):
+    try:
+        response = requests.get(companyJobListLink)
+        print(response.status_code)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, "html.parser")
+            link = soup.find("a", class_="info-job__text").get('href')
+            if not link:
+                return
+            
+            job_no_encoded = link.split('/')[-1]
+            companyRowData = scrape_job_detail(f"https://www.104.com.tw/job/ajax/content/{job_no_encoded}")
 
-    url = 'https://www.104.com.tw/jobs/search/list'
-    query = f'ro=0&kwop=7&keyword={keyword}&expansionType=area,spec,com,job,wf,wktm&mode=s&jobsource=2018indexpoc'
-    if filter_params:
-        # 加上篩選參數，要先轉換為 URL 參數字串格式
-        query += ''.join([f'&{key}={value}' for key, value, in filter_params.items()])
+        else:
+            print(f"Failed to fetch webpage. Status code: {response.status_code}")
 
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.92 Safari/537.36',
-        'Referer': 'https://www.104.com.tw/jobs/search/',
-    }
+    
+    except requests.exceptions.RequestException as e:
+        print(f"Error occurred: {e}")
 
-    # 加上排序條件
-    sort_dict = {
-        '符合度': '1',
-        '日期': '2',
-        '經歷': '3',
-        '學歷': '4',
-        '應徵人數': '7',
-        '待遇': '13',
-    }
-    sort_params = f"&order={sort_dict.get(sort_type, '1')}"
-    sort_params += '&asc=1' if is_sort_asc else '&asc=0'
-    query += sort_params
-
-    page = 1
-    while len(jobs) < max_mun:
-        params = f'{query}&page={page}'
-        r = requests.get(url, params=params, headers=headers)
-        if r.status_code != requests.codes.ok:
-            print('請求失敗', r.status_code)
-            data = r.json()
-            print(data['status'], data['statusMsg'], data['errorMsg'])
-            break
-
-        data = r.json()
-        total_count = data['data']['totalCount']
-        jobs.extend(data['data']['list'])
-
-        if (page == data['data']['totalPage']) or (data['data']['totalPage'] == 0):
-            break
-        page += 1
-        time.sleep(random.uniform(3, 5))
-
-    return total_count, jobs[:max_mun]
+    return companyRowData
+    
 
 
-filter_params = {
-    'area': '6001001000',  # (地區) 台北市
-    's9': '1',  # (上班時段) 日班
-    'isnew': '0',  # (更新日期) 本日最新
-    'jobexp': '1,3',  # (經歷要求) 1年以下,1-3年
-    'zone': '16',  # (公司類型) 上市上櫃
-}
-total_count, jobs = search_job('python', max_mun=10, filter_params=filter_params)
-print('搜尋結果職缺總數：', total_count)
+def search_companies(query):
+    try:
+        url = "https://www.104.com.tw/company/search"
+        page_number = 46
+        dict = {}
+        query['page'] = page_number
+        qstr = urlencode(query)
+
+        while True:
+            page_url = f"{url}?{qstr}"
+            print(f"Fetching data from page {page_number}...")
+
+            response = requests.get(page_url)
+
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, "html.parser")
+                joblistLinks = soup.find_all("div", class_="job-count-link")
+                print(joblistLinks,'joblistLinks')
+
+                if len(joblistLinks) == 0:
+                    print("No more companies found. Stopping crawling.")
+                    break
+
+                for jobListLink in joblistLinks:
+                    companyJobListLink = jobListLink.find('a').get('href')
+                    if companyJobListLink:
+                        companyRowData = scrape_company_joblist(companyJobListLink)
+
+                        if companyRowData:
+                            custNo = list(companyRowData.keys())[0]
+
+                            if custNo not in dict:
+                                dict[custNo] = companyRowData[custNo]
+                                print(dict)
+
+                page_number += 1
+                
+
+            else:
+                print(f"Failed to fetch webpage. Status code: {response.status_code}")
+                break
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error occurred: {e}")
+
+    
+    return dict.values()
+
+    
+
+
+def save_to_excel():
+    data = search_companies({'zone': 5 } ) # 外商公司
+    # search_companies(url, {'zone': 5 } ) # 外商公司
+    # search_companies(url, {'zone': 5 } ) # 外商公司
+    # search_companies(url, {'zone': 5 } ) # 外商公司
+
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    excel_folder_name = 'doc'
+    doc_dir = os.path.join(project_dir, excel_folder_name)
+
+    if not os.path.exists(doc_dir):
+      os.makedirs(doc_dir)
+    now = datetime.now()
+    file_created_time = now.strftime('%Y-%m-%d_%H%M')
+    file_name = f"104_{file_created_time}.xlsx"
+    file_path = os.path.join(doc_dir, file_name)
+
+    # create a new Excel file
+    workbook = openpyxl.Workbook()
+    worksheet = workbook.active
+    worksheet.title = '104'
+    workbook.save(file_path)
+
+    # add data to worksheet
+    import_result_file = XlsxExcel(file_path, 0)
+
+    column_titles = ['單位名稱', '產業類別', 'Email', 'HR 名稱', '公司網站']
+
+    # import_result_file.writeCols(0, 0, ["Fruits"] + test_data_fruits)
+    import_result_file.writeRows(0, 0, column_titles)
+
+    rows = 0
+    for i, row in enumerate(data):
+        import_result_file.writeRows(i + 1, 0, row)
+        rows += 1
+
+    print(f"Total rows: {rows}")
+
+    import_result_file.save()
+
+
+
+if __name__ == "__main__":
+    save_to_excel()
