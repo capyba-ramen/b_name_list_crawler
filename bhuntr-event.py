@@ -5,7 +5,7 @@ from datetime import datetime
 from operate_excel import XlsxExcel
 
 def make_url(target: str, page: int, size: int):
-    return f"https://api.bhuntr.com/tw/cms/bhuntr/contest?language=tw&target={target}&limit={size}&page={page}&sort=mixed&timeline=notEnded"
+    return f"https://api.bhuntr.com/tw/cms/bhuntr/contest?language=tw&target={target}&limit={size}&page={page}&sort=mixed"
 
 def crawl_webpage(url):
     try:
@@ -26,7 +26,7 @@ def crawl_webpage(url):
 def craw_all_and_prepare_data():
     count = 0
     start_from = 1
-    size = 20
+    size = 300
     url = make_url("event", start_from, size)
     data = [] # ['單位名稱', 'Email', '電話', '活動名稱', '活動日期', '網站']
     while True:
@@ -39,11 +39,11 @@ def craw_all_and_prepare_data():
         for item in result["list"]:
             count += 1
             data.append([
-                item["organizerTitle"],
-                item["contactEmail"],
-                item["contactPhone"],
-                item["title"],
-                f"{datetime.fromtimestamp(item['startTime'])} 至 {datetime.fromtimestamp(item['endTime'])}",
+                ''.join(char for char in item["organizerTitle"] if ord(char) >= 32) if item["organizerTitle"] else '',
+                ''.join(char for char in item["contactEmail"] if ord(char) >= 32) if item["contactEmail"] else '',
+                ''.join(char for char in item["contactPhone"] if ord(char) >= 32) if item["contactPhone"] else '',
+                ''.join(char for char in item["title"] if ord(char) >= 32) if item["title"] else '',
+                f"{datetime.fromtimestamp(item['startTime'])} 至 {datetime.fromtimestamp(item['endTime'])}" if item['startTime'] and item['endTime'] else '',
                 f"https://bhuntr.com/tw/events/{item['alias']}"
             ])
 
