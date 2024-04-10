@@ -33,6 +33,9 @@ def scrape_job_detail(apiUrl):
         else:
             print(f"Failed to fetch webpage. Status code: {response.status_code}")
 
+    except KeyError:
+        result = None
+
     except requests.exceptions.RequestException as e:
         print(f"Error occurred: {e}")
 
@@ -43,9 +46,10 @@ def scrape_company_joblist(companyJobListLink):
     try:
         response = requests.get(companyJobListLink)
         print(response.status_code)
+
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, "html.parser")
-            link = soup.find("a", class_="info-job__text").get('href')
+            link = soup.find("a", class_="info-job__text").get('href') if soup.find("a", class_="info-job__text") else None
             if not link:
                 return
             
@@ -54,7 +58,6 @@ def scrape_company_joblist(companyJobListLink):
 
         else:
             print(f"Failed to fetch webpage. Status code: {response.status_code}")
-
     
     except requests.exceptions.RequestException as e:
         print(f"Error occurred: {e}")
@@ -66,12 +69,12 @@ def scrape_company_joblist(companyJobListLink):
 def search_companies(query):
     try:
         url = "https://www.104.com.tw/company/search"
-        page_number = 46
+        page_number = 1
         dict = {}
-        query['page'] = page_number
-        qstr = urlencode(query)
 
         while True:
+            query['page'] = page_number
+            qstr = urlencode(query)
             page_url = f"{url}?{qstr}"
             print(f"Fetching data from page {page_number}...")
 
@@ -80,30 +83,39 @@ def search_companies(query):
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, "html.parser")
                 joblistLinks = soup.find_all("div", class_="job-count-link")
-                print(joblistLinks,'joblistLinks')
 
-                if len(joblistLinks) == 0:
+                if not joblistLinks:
                     print("No more companies found. Stopping crawling.")
                     break
 
                 for jobListLink in joblistLinks:
                     companyJobListLink = jobListLink.find('a').get('href')
+                    companyRowData = None
+
                     if companyJobListLink:
                         companyRowData = scrape_company_joblist(companyJobListLink)
 
                         if companyRowData:
-                            custNo = list(companyRowData.keys())[0]
+                            custNo = list(companyRowData.keys())[0] if companyRowData else None
+                            if custNo:
+                                if custNo not in dict:
+                                    dict[custNo] = companyRowData[custNo]
+                                    print(dict)
 
-                            if custNo not in dict:
-                                dict[custNo] = companyRowData[custNo]
-                                print(dict)
+                if page_number >= 100:
+                    print("104 only supports up to 100 pages. Stopping crawling.")
+                    break
 
                 page_number += 1
-                
-
+            
             else:
-                print(f"Failed to fetch webpage. Status code: {response.status_code}")
-                break
+                if response.status_code == 404:
+                    print("No more companies found. Stopping crawling.")
+                    break
+
+                else:
+                    print(f"Failed to fetch webpage. Status code: {response.status_code}")
+                    continue
 
     except requests.exceptions.RequestException as e:
         print(f"Error occurred: {e}")
@@ -115,10 +127,8 @@ def search_companies(query):
 
 
 def save_to_excel():
-    data = search_companies({'zone': 5 } ) # 外商公司
-    # search_companies(url, {'zone': 5 } ) # 外商公司
-    # search_companies(url, {'zone': 5 } ) # 外商公司
-    # search_companies(url, {'zone': 5 } ) # 外商公司
+    # data = search_companies({'zone': 5 } ) # 外商公司
+    data = search_companies({'zone': '4,5,16', 'order': 4 } ) # 外商上市上櫃 + 資本額高到低
 
     project_dir = os.path.dirname(os.path.abspath(__file__))
     excel_folder_name = 'doc'
