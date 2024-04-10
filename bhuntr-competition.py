@@ -41,10 +41,10 @@ def craw_all_and_prepare_data():
         for item in result["list"]:
             count += 1
             data.append([
-                item["organizerTitle"],
-                item["contactEmail"],
-                item["contactPhone"],
-                item["title"],
+                ''.join(char for char in item["organizerTitle"] if ord(char) >= 32) if item["organizerTitle"] else '',
+                ''.join(char for char in item["contactEmail"] if ord(char) >= 32) if item["contactEmail"] else '',
+                ''.join(char for char in item["contactPhone"] if ord(char) >= 32) if item["contactPhone"] else '',
+                ''.join(char for char in item["title"] if ord(char) >= 32) if item["title"] else '',
                 f"{datetime.fromtimestamp(item['startTime'])} 至 {datetime.fromtimestamp(item['endTime'])}",
                 f"https://bhuntr.com/tw/competitions/{item['alias']}"
             ])
